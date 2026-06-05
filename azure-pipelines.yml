@@ -1,0 +1,40 @@
+trigger:
+- main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+stages:
+
+- stage: BackendTests
+  displayName: 'Backend Tests'
+  jobs:
+  - job: Pytest
+    steps:
+
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '3.11'
+
+    - script: |
+        cd backend
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pytest
+      displayName: 'Run Backend Tests'
+
+- stage: FrontendTests
+  displayName: 'Frontend Tests'
+  jobs:
+  - job: Vitest
+    steps:
+
+    - task: NodeTool@0
+      inputs:
+        versionSpec: '20.x'
+
+    - script: |
+        cd frontend/medical-frontend
+        npm install
+        npm test -- --run
+      displayName: 'Run Frontend Tests'
