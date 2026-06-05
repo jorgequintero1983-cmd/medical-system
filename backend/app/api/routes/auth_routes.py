@@ -1,10 +1,10 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from passlib.context import CryptContext
 from jose import jwt
 from datetime import datetime, timedelta
 
+from backend.app.core.security import verify_password
 from backend.app.database.database import SessionLocal
 from backend.app.models.user_model import User
 
@@ -12,9 +12,6 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 SECRET_KEY = "SECRET123"
 ALGORITHM = "HS256"
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 
 class LoginData(BaseModel):
     email: str
@@ -37,7 +34,7 @@ def login(data: LoginData, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    if not pwd_context.verify(data.password, user.hashed_password):
+    if not verify_password(data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     payload = {

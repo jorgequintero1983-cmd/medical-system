@@ -1,31 +1,29 @@
+import os
+
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
-# =========================
-# URL DE POSTGRES
-# =========================
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://postgres:postgres@localhost:5432/medical_db",
+)
 
-DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/medical_db"
+engine_kwargs = {}
 
-# =========================
-# ENGINE
-# =========================
+if DATABASE_URL.startswith("sqlite"):
+    engine_kwargs = {
+        "connect_args": {"check_same_thread": False},
+        "poolclass": StaticPool,
+    }
 
-engine = create_engine(DATABASE_URL)
-
-# =========================
-# SESSION
-# =========================
+engine = create_engine(DATABASE_URL, **engine_kwargs)
 
 SessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False,
-    bind=engine
+    bind=engine,
 )
-
-# =========================
-# BASE
-# =========================
 
 Base = declarative_base()

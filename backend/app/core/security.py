@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, UTC
 
 from jose import jwt, JWTError
 
-from passlib.context import CryptContext
+import bcrypt
 
 from fastapi import HTTPException, Depends
 
@@ -24,16 +24,6 @@ SECRET_KEY = "SUPER_SECRET_KEY"
 ALGORITHM = "HS256"
 
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
-
-
-# =========================
-# PASSWORD HASH
-# =========================
-
-pwd_context = CryptContext(
-    schemes=["bcrypt"],
-    deprecated="auto"
-)
 
 
 # =========================
@@ -66,7 +56,10 @@ def get_db():
 
 def hash_password(password: str):
 
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(
+        password.encode("utf-8"),
+        bcrypt.gensalt(),
+    ).decode("utf-8")
 
 
 # =========================
@@ -78,9 +71,9 @@ def verify_password(
     hashed_password
 ):
 
-    return pwd_context.verify(
-        plain_password,
-        hashed_password
+    return bcrypt.checkpw(
+        plain_password.encode("utf-8"),
+        hashed_password.encode("utf-8"),
     )
 
 
