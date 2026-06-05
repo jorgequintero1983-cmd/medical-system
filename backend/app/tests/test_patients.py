@@ -1,5 +1,5 @@
 from fastapi.testclient import TestClient
-from app.main import app
+from backend.app.main import app
 import random
 
 client = TestClient(app)

@@ -10,6 +10,8 @@ stages:
   displayName: 'Backend Tests'
   jobs:
   - job: Pytest
+    displayName: 'Run Pytest'
+
     steps:
 
     - task: UsePythonVersion@0
@@ -17,16 +19,31 @@ stages:
         versionSpec: '3.11'
 
     - script: |
-        cd backend
+        echo "Ubicación actual:"
+        pwd
+
+        echo "Contenido del repositorio:"
+        ls -R
+
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pytest
+
+        pip install -r backend/requirements.txt
+
+        export PYTHONPATH=$(pwd)
+
+        pytest backend/app/tests -v
       displayName: 'Run Backend Tests'
 
 - stage: FrontendTests
   displayName: 'Frontend Tests'
+  dependsOn: BackendTests
+  condition: succeeded()
+
   jobs:
+
   - job: Vitest
+    displayName: 'Run Vitest'
+
     steps:
 
     - task: NodeTool@0
@@ -35,6 +52,8 @@ stages:
 
     - script: |
         cd frontend/medical-frontend
+
         npm install
+
         npm test -- --run
       displayName: 'Run Frontend Tests'
