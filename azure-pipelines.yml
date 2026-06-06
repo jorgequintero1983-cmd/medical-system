@@ -10,7 +10,7 @@ stages:
   displayName: 'Backend Tests'
   jobs:
   - job: Pytest
-    displayName: 'Run Pytest'
+    displayName: 'Run Pytest + Coverage'
 
     services:
       postgres:
@@ -42,17 +42,36 @@ stages:
           sleep 2
         done
 
-        echo "Ubicación actual:"
-        pwd
-
         python -m pip install --upgrade pip
         pip install -r backend/requirements.txt
 
         export PYTHONPATH=$(pwd)
         export DATABASE_URL="$(DATABASE_URL)"
 
-        pytest backend/app/tests -v
-      displayName: 'Run Backend Tests'
+        pytest backend/app/tests -v \
+          --cov=backend/app \
+          --cov-report=xml \
+          --cov-report=term-missing \
+          --junitxml=test-results-backend.xml
+      displayName: 'Run Backend Tests with Coverage'
+
+    - task: PublishTestResults@2
+      displayName: 'Publish Backend Test Results'
+      condition: succeededOrFailed()
+      inputs:
+        testResultsFormat: 'JUnit'
+        testResultsFiles: 'test-results-backend.xml'
+        testRunTitle: 'Backend Pytest'
+        mergeTestResults: true
+        failTaskOnFailedTests: true
+
+    - task: PublishCodeCoverageResults@2
+      displayName: 'Publish Backend Code Coverage'
+      condition: succeededOrFailed()
+      inputs:
+        summaryFileLocation: '$(System.DefaultWorkingDirectory)/coverage.xml'
+        pathToSources: '$(System.DefaultWorkingDirectory)/backend/app'
+        failIfCoverageEmpty: true
 
 - stage: FrontendTests
   displayName: 'Frontend Tests'
@@ -62,7 +81,7 @@ stages:
   jobs:
 
   - job: Vitest
-    displayName: 'Run Vitest'
+    displayName: 'Run Vitest + Coverage'
 
     steps:
 
@@ -74,6 +93,23 @@ stages:
         cd frontend/medical-frontend
 
         npm install
+        npm run test:coverage
+      displayName: 'Run Frontend Tests with Coverage'
 
-        npm test -- --run
-      displayName: 'Run Frontend Tests'
+    - task: PublishTestResults@2
+      displayName: 'Publish Frontend Test Results'
+      condition: succeededOrFailed()
+      inputs:
+        testResultsFormat: 'JUnit'
+        testResultsFiles: 'frontend/medical-frontend/test-results-frontend.xml'
+        testRunTitle: 'Frontend Vitest'
+        mergeTestResults: true
+        failTaskOnFailedTests: true
+
+    - task: PublishCodeCoverageResults@2
+      displayName: 'Publish Frontend Code Coverage'
+      condition: succeededOrFailed()
+      inputs:
+        summaryFileLocation: '$(System.DefaultWorkingDirectory)/frontend/medical-frontend/coverage/cobertura-coverage.xml'
+        pathToSources: '$(System.DefaultWorkingDirectory)/frontend/medical-frontend/src'
+        failIfCoverageEmpty: true
