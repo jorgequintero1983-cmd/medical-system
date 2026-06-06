@@ -7,6 +7,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
 from backend.app.database.connection import Base, SessionLocal, engine
+from backend.app.models.patient_model import Patient  # noqa: F401
 from backend.app.models.user_model import User
 
 ADMIN_PASSWORD_HASH = (

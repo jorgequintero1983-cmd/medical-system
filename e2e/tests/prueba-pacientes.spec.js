@@ -12,7 +12,9 @@ test.describe("Prueba E2E - Gestión de pacientes", () => {
   });
 
   test("debe mostrar el formulario de crear paciente", async ({ page }) => {
-    await expect(page.getByText("Crear Paciente")).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Crear Paciente" }),
+    ).toBeVisible();
     await expect(page.getByPlaceholder("Documento")).toBeVisible();
     await expect(page.getByPlaceholder("Nombre completo")).toBeVisible();
     await expect(page.getByPlaceholder("Celular")).toBeVisible();

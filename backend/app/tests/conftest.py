@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from backend.app.database.connection import Base, SessionLocal, engine
 from backend.app.main import app
+from backend.app.models.patient_model import Patient  # noqa: F401
 from backend.app.models.user_model import User
 
 ADMIN_PASSWORD_HASH = (
