@@ -4,13 +4,22 @@ trigger:
 pool:
   vmImage: 'ubuntu-latest'
 
+variables:
+  DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/medical_db
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '20.x'
+
 stages:
 
-- stage: BackendTests
-  displayName: 'Backend Tests'
+# ============================================================
+# 1. PRUEBAS UNITARIAS - BACKEND
+# ============================================================
+- stage: PruebasUnitariasBackend
+  displayName: 'Pruebas Unitarias - Backend'
+
   jobs:
-  - job: Pytest
-    displayName: 'Run Pytest + Coverage'
+  - job: PytestUnitarias
+    displayName: 'Ejecutar Pytest Unitarias + Cobertura'
 
     services:
       postgres:
@@ -22,94 +31,395 @@ stages:
         ports:
           - 5432:5432
 
-    variables:
-      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/medical_db
-
     steps:
-
     - task: UsePythonVersion@0
+      displayName: 'Instalar Python'
       inputs:
-        versionSpec: '3.11'
+        versionSpec: '$(PYTHON_VERSION)'
 
     - script: |
-        echo "Esperando a que PostgreSQL esté listo..."
-        for i in {1..30}; do
-          if python -c "import socket; s=socket.socket(); s.settimeout(1); s.connect(('127.0.0.1', 5432)); s.close()"; then
-            echo "PostgreSQL disponible."
-            break
-          fi
-          echo "Intento $i/30..."
-          sleep 2
-        done
-
+        bash scripts/ci/wait_for_postgres.sh
         python -m pip install --upgrade pip
         pip install -r backend/requirements.txt
-
         export PYTHONPATH=$(pwd)
         export DATABASE_URL="$(DATABASE_URL)"
-
-        pytest backend/app/tests -v \
+        pytest backend/app/tests/test_auth.py backend/app/tests/test_patients.py -v \
           --cov=backend/app \
           --cov-report=xml \
           --cov-report=term-missing \
-          --junitxml=test-results-backend.xml
-      displayName: 'Run Backend Tests with Coverage'
+          --junitxml=resultados-unitarias-backend.xml
+      displayName: 'Pruebas Unitarias Backend (Pytest)'
 
     - task: PublishTestResults@2
-      displayName: 'Publish Backend Test Results'
+      displayName: 'Publicar Resultados - Unitarias Backend'
       condition: succeededOrFailed()
       inputs:
         testResultsFormat: 'JUnit'
-        testResultsFiles: 'test-results-backend.xml'
-        testRunTitle: 'Backend Pytest'
+        testResultsFiles: 'resultados-unitarias-backend.xml'
+        testRunTitle: 'Pruebas Unitarias - Backend'
         mergeTestResults: true
         failTaskOnFailedTests: true
 
     - task: PublishCodeCoverageResults@2
-      displayName: 'Publish Backend Code Coverage'
+      displayName: 'Publicar Cobertura - Unitarias Backend'
       condition: succeededOrFailed()
       inputs:
         summaryFileLocation: '$(System.DefaultWorkingDirectory)/coverage.xml'
         pathToSources: '$(System.DefaultWorkingDirectory)/backend/app'
         failIfCoverageEmpty: true
 
-- stage: FrontendTests
-  displayName: 'Frontend Tests'
-  dependsOn: BackendTests
+    - task: PublishPipelineArtifact@1
+      displayName: 'Guardar Cobertura Backend'
+      inputs:
+        targetPath: 'coverage.xml'
+        artifact: 'cobertura-backend'
+        publishLocation: 'pipeline'
+
+# ============================================================
+# 2. PRUEBAS DE INTEGRACIÓN - BACKEND
+# ============================================================
+- stage: PruebasIntegracionBackend
+  displayName: 'Pruebas de Integración - Backend'
+  dependsOn: PruebasUnitariasBackend
   condition: succeeded()
 
   jobs:
+  - job: PytestIntegracion
+    displayName: 'Ejecutar Pytest Integración'
 
-  - job: Vitest
-    displayName: 'Run Vitest + Coverage'
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: medical_db
+        ports:
+          - 5432:5432
 
     steps:
-
-    - task: NodeTool@0
+    - task: UsePythonVersion@0
+      displayName: 'Instalar Python'
       inputs:
-        versionSpec: '20.x'
+        versionSpec: '$(PYTHON_VERSION)'
+
+    - script: |
+        bash scripts/ci/wait_for_postgres.sh
+        python -m pip install --upgrade pip
+        pip install -r backend/requirements.txt
+        export PYTHONPATH=$(pwd)
+        export DATABASE_URL="$(DATABASE_URL)"
+        pytest backend/app/tests/test_integration_auth.py backend/app/tests/test_integration_patients.py -v \
+          --junitxml=resultados-integracion-backend.xml
+      displayName: 'Pruebas de Integración Backend (Pytest)'
+
+    - task: PublishTestResults@2
+      displayName: 'Publicar Resultados - Integración Backend'
+      condition: succeededOrFailed()
+      inputs:
+        testResultsFormat: 'JUnit'
+        testResultsFiles: 'resultados-integracion-backend.xml'
+        testRunTitle: 'Pruebas de Integración - Backend'
+        mergeTestResults: true
+        failTaskOnFailedTests: true
+
+# ============================================================
+# 3. PRUEBAS DE COMPONENTES - FRONTEND
+# ============================================================
+- stage: PruebasComponentesFrontend
+  displayName: 'Pruebas de Componentes - Frontend'
+  dependsOn: PruebasIntegracionBackend
+  condition: succeeded()
+
+  jobs:
+  - job: VitestComponentes
+    displayName: 'Ejecutar Vitest Componentes + Cobertura'
+
+    steps:
+    - task: NodeTool@0
+      displayName: 'Instalar Node.js'
+      inputs:
+        versionSpec: '$(NODE_VERSION)'
 
     - script: |
         cd frontend/medical-frontend
-
         npm install
         npm run test:coverage
-      displayName: 'Run Frontend Tests with Coverage'
+      displayName: 'Pruebas de Componentes Frontend (Vitest)'
 
     - task: PublishTestResults@2
-      displayName: 'Publish Frontend Test Results'
+      displayName: 'Publicar Resultados - Componentes Frontend'
       condition: succeededOrFailed()
       inputs:
         testResultsFormat: 'JUnit'
         testResultsFiles: 'frontend/medical-frontend/test-results-frontend.xml'
-        testRunTitle: 'Frontend Vitest'
+        testRunTitle: 'Pruebas de Componentes - Frontend'
         mergeTestResults: true
         failTaskOnFailedTests: true
 
     - task: PublishCodeCoverageResults@2
-      displayName: 'Publish Frontend Code Coverage'
+      displayName: 'Publicar Cobertura - Componentes Frontend'
       condition: succeededOrFailed()
       inputs:
         summaryFileLocation: '$(System.DefaultWorkingDirectory)/frontend/medical-frontend/coverage/cobertura-coverage.xml'
         pathToSources: '$(System.DefaultWorkingDirectory)/frontend/medical-frontend/src'
         failIfCoverageEmpty: true
+
+    - task: PublishPipelineArtifact@1
+      displayName: 'Guardar Cobertura Frontend'
+      inputs:
+        targetPath: 'frontend/medical-frontend/coverage'
+        artifact: 'cobertura-frontend'
+        publishLocation: 'pipeline'
+
+# ============================================================
+# 4. PRUEBAS DE MUTACIÓN - BACKEND
+# ============================================================
+- stage: PruebasMutacionBackend
+  displayName: 'Pruebas de Mutación - Backend'
+  dependsOn: PruebasComponentesFrontend
+  condition: succeeded()
+
+  jobs:
+  - job: MutmutBackend
+    displayName: 'Ejecutar Mutmut'
+
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: medical_db
+        ports:
+          - 5432:5432
+
+    steps:
+    - task: UsePythonVersion@0
+      displayName: 'Instalar Python'
+      inputs:
+        versionSpec: '$(PYTHON_VERSION)'
+
+    - script: |
+        bash scripts/ci/wait_for_postgres.sh
+        python -m pip install --upgrade pip
+        pip install -r backend/requirements.txt
+        export PYTHONPATH=$(pwd)
+        export DATABASE_URL="$(DATABASE_URL)"
+        mutmut run --paths-to-mutate backend/app/core/security.py --paths-to-mutate backend/app/api/routes/auth_routes.py
+        mutmut results | tee resultados-mutacion.txt
+        mutmut junitxml
+        mv mutmut.xml resultados-mutacion-backend.xml
+      displayName: 'Pruebas de Mutación Backend (Mutmut)'
+
+    - task: PublishTestResults@2
+      displayName: 'Publicar Resultados - Mutación Backend'
+      condition: succeededOrFailed()
+      inputs:
+        testResultsFormat: 'JUnit'
+        testResultsFiles: 'resultados-mutacion-backend.xml'
+        testRunTitle: 'Pruebas de Mutación - Backend'
+        mergeTestResults: true
+        failTaskOnFailedTests: false
+
+    - task: PublishPipelineArtifact@1
+      displayName: 'Guardar Reporte Mutación'
+      condition: succeededOrFailed()
+      inputs:
+        targetPath: 'resultados-mutacion.txt'
+        artifact: 'reporte-mutacion'
+        publishLocation: 'pipeline'
+
+# ============================================================
+# 5. PRUEBAS E2E
+# ============================================================
+- stage: PruebasE2E
+  displayName: 'Pruebas E2E (End-to-End)'
+  dependsOn: PruebasMutacionBackend
+  condition: succeeded()
+
+  jobs:
+  - job: PlaywrightE2E
+    displayName: 'Ejecutar Playwright E2E'
+
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: medical_db
+        ports:
+          - 5432:5432
+
+    steps:
+    - task: UsePythonVersion@0
+      displayName: 'Instalar Python'
+      inputs:
+        versionSpec: '$(PYTHON_VERSION)'
+
+    - task: NodeTool@0
+      displayName: 'Instalar Node.js'
+      inputs:
+        versionSpec: '$(NODE_VERSION)'
+
+    - script: |
+        set -e
+        bash scripts/ci/wait_for_postgres.sh
+        python -m pip install --upgrade pip
+        pip install -r backend/requirements.txt
+        export PYTHONPATH=$(pwd)
+        export DATABASE_URL="$(DATABASE_URL)"
+        python scripts/seed_database.py
+
+        python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 &
+        for i in {1..30}; do
+          curl -sf http://127.0.0.1:8000/ && break
+          sleep 2
+        done
+
+        cd frontend/medical-frontend
+        npm install
+        npm run dev -- --host 127.0.0.1 --port 5173 &
+        cd ../..
+
+        for i in {1..30}; do
+          curl -sf http://127.0.0.1:5173/ && break
+          sleep 2
+        done
+
+        cd e2e
+        npm install
+        npx playwright install --with-deps chromium
+        npm test
+      displayName: 'Pruebas E2E (Playwright)'
+
+    - task: PublishTestResults@2
+      displayName: 'Publicar Resultados - E2E'
+      condition: succeededOrFailed()
+      inputs:
+        testResultsFormat: 'JUnit'
+        testResultsFiles: 'e2e/resultados-e2e.xml'
+        testRunTitle: 'Pruebas E2E - Playwright'
+        mergeTestResults: true
+        failTaskOnFailedTests: true
+
+# ============================================================
+# 6. PRUEBAS DE PERFORMANCE - JMETER
+# ============================================================
+- stage: PruebasPerformanceJMeter
+  displayName: 'Pruebas de Performance - JMeter'
+  dependsOn: PruebasE2E
+  condition: succeeded()
+
+  jobs:
+  - job: JMeterPerformance
+    displayName: 'Ejecutar JMeter'
+
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: medical_db
+        ports:
+          - 5432:5432
+
+    steps:
+    - task: UsePythonVersion@0
+      displayName: 'Instalar Python'
+      inputs:
+        versionSpec: '$(PYTHON_VERSION)'
+
+    - script: |
+        set -e
+        bash scripts/ci/wait_for_postgres.sh
+        python -m pip install --upgrade pip
+        pip install -r backend/requirements.txt
+        export PYTHONPATH=$(pwd)
+        export DATABASE_URL="$(DATABASE_URL)"
+        python scripts/seed_database.py
+
+        python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 &
+        for i in {1..30}; do
+          curl -sf http://127.0.0.1:8000/ && break
+          sleep 2
+        done
+
+        JMETER_VERSION=5.6.3
+        wget -q "https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-${JMETER_VERSION}.tgz"
+        tar -xzf "apache-jmeter-${JMETER_VERSION}.tgz"
+
+        ./apache-jmeter-${JMETER_VERSION}/bin/jmeter -n \
+          -t performance/prueba-rendimiento.jmx \
+          -l performance/resultados-jmeter.jtl \
+          -e -o performance/reporte-jmeter
+
+        echo "Prueba de performance JMeter completada."
+      displayName: 'Pruebas de Performance (JMeter)'
+
+    - task: PublishPipelineArtifact@1
+      displayName: 'Publicar Reporte JMeter'
+      condition: succeededOrFailed()
+      inputs:
+        targetPath: 'performance/reporte-jmeter'
+        artifact: 'reporte-jmeter'
+        publishLocation: 'pipeline'
+
+# ============================================================
+# 7. ANÁLISIS DE CÓDIGO - SONARQUBE
+# ============================================================
+- stage: AnalisisCodigoSonarQube
+  displayName: 'Análisis de Código - SonarQube'
+  dependsOn:
+  - PruebasUnitariasBackend
+  - PruebasComponentesFrontend
+  condition: succeeded()
+
+  jobs:
+  - job: SonarQubeAnalisis
+    displayName: 'Ejecutar SonarQube Scanner'
+
+    steps:
+    - task: UsePythonVersion@0
+      displayName: 'Instalar Python'
+      inputs:
+        versionSpec: '$(PYTHON_VERSION)'
+
+    - task: NodeTool@0
+      displayName: 'Instalar Node.js'
+      inputs:
+        versionSpec: '$(NODE_VERSION)'
+
+    - task: DownloadPipelineArtifact@2
+      displayName: 'Descargar Cobertura Backend'
+      inputs:
+        artifact: 'cobertura-backend'
+        path: '$(System.DefaultWorkingDirectory)'
+
+    - task: DownloadPipelineArtifact@2
+      displayName: 'Descargar Cobertura Frontend'
+      inputs:
+        artifact: 'cobertura-frontend'
+        path: 'frontend/medical-frontend/coverage'
+
+    - script: |
+        if [ -z "$SONAR_TOKEN" ]; then
+          echo "##vso[task.logissue type=warning]SONAR_TOKEN no configurado."
+          echo "Configure SONAR_TOKEN y SONAR_HOST_URL en Variables del pipeline."
+          echo "Análisis SonarQube omitido."
+          exit 0
+        fi
+
+        wget -q https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip
+        unzip -q sonar-scanner-cli-5.0.1.3006-linux.zip
+        export PATH=$(pwd)/sonar-scanner-5.0.1.3006-linux/bin:$PATH
+
+        sonar-scanner \
+          -Dsonar.host.url="$SONAR_HOST_URL" \
+          -Dsonar.login="$SONAR_TOKEN"
+      displayName: 'Análisis de Código (SonarQube)'
+      env:
+        SONAR_TOKEN: $(SONAR_TOKEN)
+        SONAR_HOST_URL: $(SONAR_HOST_URL)

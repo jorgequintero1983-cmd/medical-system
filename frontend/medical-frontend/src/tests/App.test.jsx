@@ -31,7 +31,7 @@ function renderWithToken(patients = []) {
   render(<App />);
 }
 
-describe("App - Login", () => {
+describe("Prueba de Componentes - Login", () => {
   beforeEach(() => {
     localStorage.clear();
     vi.clearAllMocks();
@@ -93,7 +93,7 @@ describe("App - Login", () => {
   });
 });
 
-describe("App - Panel de pacientes", () => {
+describe("Prueba de Componentes - Panel de Pacientes", () => {
   beforeEach(() => {
     localStorage.clear();
     vi.clearAllMocks();

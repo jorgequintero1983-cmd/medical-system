@@ -6,5 +6,6 @@ python-jose
 bcrypt
 pytest
 pytest-cov
+mutmut
 httpx
 psycopg2-binary

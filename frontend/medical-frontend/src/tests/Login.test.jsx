@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import App from "../App";
 
-describe("Login Component", () => {
+describe("Prueba de Componentes - Login", () => {
 
   test("Debe mostrar formulario login", () => {
 
