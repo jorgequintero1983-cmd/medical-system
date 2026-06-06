@@ -61,14 +61,6 @@ stages:
         mergeTestResults: true
         failTaskOnFailedTests: true
 
-    - task: PublishCodeCoverageResults@2
-      displayName: 'Publicar Cobertura - Unitarias Backend'
-      condition: succeededOrFailed()
-      inputs:
-        summaryFileLocation: '$(System.DefaultWorkingDirectory)/coverage.xml'
-        pathToSources: '$(System.DefaultWorkingDirectory)/backend/app'
-        failIfCoverageEmpty: true
-
     - task: PublishPipelineArtifact@1
       displayName: 'Guardar Cobertura Backend'
       inputs:
@@ -166,14 +158,6 @@ stages:
         mergeTestResults: true
         failTaskOnFailedTests: true
 
-    - task: PublishCodeCoverageResults@2
-      displayName: 'Publicar Cobertura - Componentes Frontend'
-      condition: succeededOrFailed()
-      inputs:
-        summaryFileLocation: '$(System.DefaultWorkingDirectory)/frontend/medical-frontend/coverage/cobertura-coverage.xml'
-        pathToSources: '$(System.DefaultWorkingDirectory)/frontend/medical-frontend/src'
-        failIfCoverageEmpty: true
-
     - task: PublishPipelineArtifact@1
       displayName: 'Guardar Cobertura Frontend'
       inputs:
@@ -187,6 +171,55 @@ stages:
       inputs:
         targetPath: 'frontend/medical-frontend/coverage'
         artifact: 'reporte-html-cobertura-frontend'
+        publishLocation: 'pipeline'
+
+# ============================================================
+# 3.1 CONSOLIDAR COBERTURA DEL PROYECTO
+# ============================================================
+- stage: ConsolidarCoberturaProyecto
+  displayName: 'Consolidar Cobertura del Proyecto'
+  dependsOn:
+  - PruebasUnitariasBackend
+  - PruebasComponentesFrontend
+  condition: succeeded()
+
+  jobs:
+  - job: CoberturaProyectoCompleto
+    displayName: 'Unificar cobertura Backend + Frontend'
+
+    steps:
+    - checkout: self
+
+    - task: DownloadPipelineArtifact@2
+      displayName: 'Descargar Cobertura Backend'
+      inputs:
+        artifact: 'cobertura-backend'
+        path: '$(System.DefaultWorkingDirectory)'
+
+    - task: DownloadPipelineArtifact@2
+      displayName: 'Descargar Cobertura Frontend'
+      inputs:
+        artifact: 'cobertura-frontend'
+        path: 'frontend/medical-frontend/coverage'
+
+    - script: bash scripts/ci/merge_coverage.sh
+      displayName: 'Generar reporte unificado de cobertura'
+
+    - task: PublishCodeCoverageResults@2
+      displayName: 'Publicar Cobertura - Proyecto Completo'
+      condition: succeededOrFailed()
+      inputs:
+        codeCoverageTool: 'Cobertura'
+        summaryFileLocation: '$(System.DefaultWorkingDirectory)/reportes-html/cobertura-proyecto/Cobertura.xml'
+        pathToSources: '$(System.DefaultWorkingDirectory)/backend/app;$(System.DefaultWorkingDirectory)/frontend/medical-frontend/src'
+        failIfCoverageEmpty: true
+
+    - task: PublishPipelineArtifact@1
+      displayName: 'Publicar Reporte HTML - Cobertura Proyecto'
+      condition: succeededOrFailed()
+      inputs:
+        targetPath: 'reportes-html/cobertura-proyecto'
+        artifact: 'reporte-html-cobertura-proyecto'
         publishLocation: 'pipeline'
 
 # ============================================================
