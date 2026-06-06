@@ -7,6 +7,7 @@ export default defineConfig({
   reporter: [
     ["list"],
     ["junit", { outputFile: "resultados-e2e.xml" }],
+    ["html", { outputFolder: "reportes-html/e2e", open: "never" }],
   ],
   use: {
     baseURL: "http://127.0.0.1:5173",

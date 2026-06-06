@@ -7,5 +7,6 @@ export DATABASE_URL="${DATABASE_URL:-postgresql://postgres:postgres@127.0.0.1:54
 echo "=== Pruebas de Mutación (Mutmut) ==="
 python -m mutmut run 2>&1 | tee resultados-mutacion.log
 python -m mutmut results | tee resultados-mutacion.txt
+python scripts/ci/generate_mutmut_html.py
 
-echo "Mutación completada. Revise resultados-mutacion.txt"
+echo "Mutación completada. Revise reportes-html/mutacion/index.html"

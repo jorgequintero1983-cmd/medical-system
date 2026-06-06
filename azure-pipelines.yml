@@ -46,6 +46,7 @@ stages:
         pytest backend/app/tests/test_auth.py backend/app/tests/test_patients.py -v \
           --cov=backend/app \
           --cov-report=xml \
+          --cov-report=html:reportes-html/cobertura-backend \
           --cov-report=term-missing \
           --junitxml=resultados-unitarias-backend.xml
       displayName: 'Pruebas Unitarias Backend (Pytest)'
@@ -73,6 +74,14 @@ stages:
       inputs:
         targetPath: 'coverage.xml'
         artifact: 'cobertura-backend'
+        publishLocation: 'pipeline'
+
+    - task: PublishPipelineArtifact@1
+      displayName: 'Publicar Reporte HTML - Cobertura Backend'
+      condition: succeededOrFailed()
+      inputs:
+        targetPath: 'reportes-html/cobertura-backend'
+        artifact: 'reporte-html-cobertura-backend'
         publishLocation: 'pipeline'
 
 # ============================================================
@@ -172,6 +181,14 @@ stages:
         artifact: 'cobertura-frontend'
         publishLocation: 'pipeline'
 
+    - task: PublishPipelineArtifact@1
+      displayName: 'Publicar Reporte HTML - Cobertura Frontend'
+      condition: succeededOrFailed()
+      inputs:
+        targetPath: 'frontend/medical-frontend/coverage'
+        artifact: 'reporte-html-cobertura-frontend'
+        publishLocation: 'pipeline'
+
 # ============================================================
 # 4. PRUEBAS DE MUTACIÓN - BACKEND
 # ============================================================
@@ -210,11 +227,11 @@ stages:
       displayName: 'Pruebas de Mutación Backend (Mutmut)'
 
     - task: PublishPipelineArtifact@1
-      displayName: 'Guardar Reporte Mutación'
+      displayName: 'Publicar Reporte HTML - Mutación'
       condition: succeededOrFailed()
       inputs:
-        targetPath: 'resultados-mutacion.txt'
-        artifact: 'reporte-mutacion'
+        targetPath: 'reportes-html/mutacion'
+        artifact: 'reporte-html-mutacion'
         publishLocation: 'pipeline'
 
     - task: PublishPipelineArtifact@1
@@ -299,6 +316,14 @@ stages:
         mergeTestResults: true
         failTaskOnFailedTests: true
 
+    - task: PublishPipelineArtifact@1
+      displayName: 'Publicar Reporte HTML - E2E'
+      condition: succeededOrFailed()
+      inputs:
+        targetPath: 'e2e/reportes-html/e2e'
+        artifact: 'reporte-html-e2e'
+        publishLocation: 'pipeline'
+
 # ============================================================
 # 6. PRUEBAS DE PERFORMANCE - JMETER
 # ============================================================
@@ -355,11 +380,11 @@ stages:
       displayName: 'Pruebas de Performance (JMeter)'
 
     - task: PublishPipelineArtifact@1
-      displayName: 'Publicar Reporte JMeter'
+      displayName: 'Publicar Reporte HTML - JMeter'
       condition: succeededOrFailed()
       inputs:
         targetPath: 'performance/reporte-jmeter'
-        artifact: 'reporte-jmeter'
+        artifact: 'reporte-html-jmeter'
         publishLocation: 'pipeline'
 
 # ============================================================
