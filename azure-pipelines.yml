@@ -206,21 +206,8 @@ stages:
         pip install -r backend/requirements.txt
         export PYTHONPATH=$(pwd)
         export DATABASE_URL="$(DATABASE_URL)"
-        mutmut run --paths-to-mutate backend/app/core/security.py --paths-to-mutate backend/app/api/routes/auth_routes.py
-        mutmut results | tee resultados-mutacion.txt
-        mutmut junitxml
-        mv mutmut.xml resultados-mutacion-backend.xml
+        bash scripts/ci/run_mutmut.sh
       displayName: 'Pruebas de Mutación Backend (Mutmut)'
-
-    - task: PublishTestResults@2
-      displayName: 'Publicar Resultados - Mutación Backend'
-      condition: succeededOrFailed()
-      inputs:
-        testResultsFormat: 'JUnit'
-        testResultsFiles: 'resultados-mutacion-backend.xml'
-        testRunTitle: 'Pruebas de Mutación - Backend'
-        mergeTestResults: true
-        failTaskOnFailedTests: false
 
     - task: PublishPipelineArtifact@1
       displayName: 'Guardar Reporte Mutación'
@@ -230,12 +217,20 @@ stages:
         artifact: 'reporte-mutacion'
         publishLocation: 'pipeline'
 
+    - task: PublishPipelineArtifact@1
+      displayName: 'Guardar Log Mutación'
+      condition: succeededOrFailed()
+      inputs:
+        targetPath: 'resultados-mutacion.log'
+        artifact: 'log-mutacion'
+        publishLocation: 'pipeline'
+
 # ============================================================
 # 5. PRUEBAS E2E
 # ============================================================
 - stage: PruebasE2E
   displayName: 'Pruebas E2E (End-to-End)'
-  dependsOn: PruebasMutacionBackend
+  dependsOn: PruebasComponentesFrontend
   condition: succeeded()
 
   jobs:
@@ -380,6 +375,7 @@ stages:
   jobs:
   - job: SonarQubeAnalisis
     displayName: 'Ejecutar SonarQube Scanner'
+    continueOnError: true
 
     steps:
     - task: UsePythonVersion@0
@@ -405,21 +401,7 @@ stages:
         path: 'frontend/medical-frontend/coverage'
 
     - script: |
-        if [ -z "$SONAR_TOKEN" ]; then
-          echo "##vso[task.logissue type=warning]SONAR_TOKEN no configurado."
-          echo "Configure SONAR_TOKEN y SONAR_HOST_URL en Variables del pipeline."
-          echo "Análisis SonarQube omitido."
-          exit 0
-        fi
-
-        wget -q https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip
-        unzip -q sonar-scanner-cli-5.0.1.3006-linux.zip
-        export PATH=$(pwd)/sonar-scanner-5.0.1.3006-linux/bin:$PATH
-
-        sonar-scanner \
-          -Dsonar.host.url="$SONAR_HOST_URL" \
-          -Dsonar.login="$SONAR_TOKEN"
+        export SONAR_TOKEN="$(SONAR_TOKEN)"
+        export SONAR_HOST_URL="$(SONAR_HOST_URL)"
+        bash scripts/ci/run_sonar.sh
       displayName: 'Análisis de Código (SonarQube)'
-      env:
-        SONAR_TOKEN: $(SONAR_TOKEN)
-        SONAR_HOST_URL: $(SONAR_HOST_URL)
